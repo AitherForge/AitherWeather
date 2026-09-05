@@ -1,132 +1,19 @@
-/* Aither Weather V28 — AitherBackend account authentication. */
+/* Aither Weather V28 — AitherBackend account authentication + cloud sync loader. */
 const WTWAuth = (() => {
   const BACKEND = window.AITHER_BACKEND_URL || 'https://aither-backend.onrender.com';
   const state = { profile: null, onChange: null };
   const $ = (id) => document.getElementById(id);
-  const toast = (msg, error=false) => {
-    let el = $('coreToast');
-    if (!el) { el=document.createElement('div'); el.id='coreToast'; el.className='toast'; document.body.appendChild(el); }
-    el.textContent=msg; el.dataset.error=error?'true':'false'; el.classList.add('show');
-    clearTimeout(el._timer); el._timer=setTimeout(()=>el.classList.remove('show'),2800);
-  };
-  async function api(path, options={}) {
-    const res = await fetch(`${BACKEND}${path}`, {
-      ...options,
-      credentials:'include',
-      headers:{'Content-Type':'application/json',Accept:'application/json',...(options.headers||{})}
-    });
-    let data=null; try { data=await res.json(); } catch (_) {}
-    if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
-    return data;
-  }
-  function saveProfile(user) {
-    state.profile=user||null;
-    try { if (user) localStorage.setItem('wtw-backend-profile',JSON.stringify(user)); else localStorage.removeItem('wtw-backend-profile'); } catch (_) {}
-    if (typeof state.onChange==='function') state.onChange(state.profile);
-  }
-  function getProfile() { return state.profile; }
-  const isSignedIn=()=>!!state.profile;
-
-  async function refreshSession(silent=true) {
-    try {
-      const data=await api('/api/auth/session',{headers:{Accept:'application/json'}});
-      if (data.authenticated && data.user) saveProfile(data.user); else saveProfile(null);
-      return data;
-    } catch (err) {
-      if (!silent) toast('Aither Backend is unavailable.',true);
-      return {authenticated:false,user:null};
-    }
-  }
-
-  function setupBackendForm() {
-    const form=$('localSignInForm');
-    if (!form || form.dataset.backendReady==='true') return;
-    form.dataset.backendReady='true';
-    form.innerHTML=`
-      <label for="aitherAccountName">Aither account</label>
-      <input id="aitherAccountName" type="text" maxlength="80" autocomplete="name" placeholder="Name">
-      <input id="aitherAccountEmail" type="email" maxlength="320" autocomplete="email" placeholder="Email">
-      <input id="aitherAccountPassword" type="password" minlength="8" maxlength="200" autocomplete="current-password" placeholder="Password (8+ characters)">
-      <div class="setting-row">
-        <button type="submit" id="localSignInBtn" class="btn btn-primary btn-small">Sign in / Create account</button>
-      </div>
-      <p class="signin-local-note">Your account is stored in AitherBackend and your session is kept in a secure browser cookie.</p>`;
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const name=$('aitherAccountName')?.value.trim();
-      const email=$('aitherAccountEmail')?.value.trim();
-      const password=$('aitherAccountPassword')?.value || '';
-      if (!email || password.length<8) { toast('Enter an email and a password with at least 8 characters.',true); return; }
-      const button=$('localSignInBtn'); if(button) button.disabled=true;
-      try {
-        let data;
-        try {
-          data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
-        } catch (loginErr) {
-          if (!name) throw loginErr;
-          data=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
-        }
-        if (!data?.authenticated || !data.user) throw new Error('Account session was not created.');
-        saveProfile(data.user);
-        toast(`Signed in as ${data.user.name}`);
-      } catch (err) {
-        toast(err.message || 'Account sign-in failed.',true);
-      } finally { if(button) button.disabled=false; }
-    });
-  }
-
-  async function signInLocally(rawName, avatar) {
-    setupBackendForm();
-    const email=$('aitherAccountEmail')?.value.trim();
-    const password=$('aitherAccountPassword')?.value || '';
-    const name=$('aitherAccountName')?.value.trim() || String(rawName||'').trim();
-    if (email && password) {
-      try {
-        let data;
-        try { data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})}); }
-        catch (_) { data=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})}); }
-        saveProfile(data.user); return {ok:true};
-      } catch (err) { toast(err.message||'Account sign-in failed.',true); return {ok:false,reason:'error'}; }
-    }
-    return {ok:false,reason:'backend-form'};
-  }
-
-  async function signOut() {
-    try { await api('/api/auth/logout',{method:'POST',body:'{}'}); } catch (_) {}
-    saveProfile(null); toast('Signed out');
-  }
-
-  function isSupportedHere(){ return location.protocol==='https:' || location.hostname==='localhost' || location.hostname==='127.0.0.1'; }
-  function providers(){ return []; }
-  const isConfigured=()=>true;
-  async function renderGoogleButton(){ return 'unavailable'; }
-  async function signInWithMicrosoft(){ return {ok:false,reason:'backend-only'}; }
-  async function signInWithApple(){ return {ok:false,reason:'backend-only'}; }
-  function setClientId(){ return null; }
-  function storedClientId(){ return ''; }
-  function configuredClientId(){ return null; }
-  function avatars(){ return []; }
-
-  function exportAccount(){
-    const payload={v:2,profile:state.profile,settings:window.WTWStorage?.getSettings?.()||{},favorites:window.WTWStorage?.getFavorites?.()||[],madeAt:Date.now()};
-    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  }
-  function importAccount(code){
-    try {
-      const p=JSON.parse(decodeURIComponent(escape(atob(String(code||'').trim()))));
-      if (!p || !p.settings) return {ok:false,reason:'unreadable'};
-      window.WTWStorage?.saveSettings?.(p.settings);
-      if(Array.isArray(p.favorites)) window.WTWStorage?.saveFavorites?.(p.favorites);
-      return {ok:true,name:p.profile?.name||'',favorites:Array.isArray(p.favorites)?p.favorites.length:0};
-    } catch (_) { return {ok:false,reason:'unreadable'}; }
-  }
-
-  async function init({onChange}={}) {
-    state.onChange=onChange;
-    setupBackendForm();
-    await refreshSession(true);
-    if (typeof onChange==='function') onChange(state.profile);
-  }
+  const toast = (msg, error=false) => { let el=$('coreToast'); if(!el){el=document.createElement('div');el.id='coreToast';el.className='toast';document.body.appendChild(el)} el.textContent=msg;el.dataset.error=error?'true':'false';el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),2800); };
+  async function api(path, options={}) { const res=await fetch(`${BACKEND}${path}`,{...options,credentials:'include',headers:{'Content-Type':'application/json',Accept:'application/json',...(options.headers||{})}});let data=null;try{data=await res.json()}catch(_){}if(!res.ok)throw new Error(data?.detail||`HTTP ${res.status}`);return data; }
+  function saveProfile(user){state.profile=user||null;try{if(user)localStorage.setItem('wtw-backend-profile',JSON.stringify(user));else localStorage.removeItem('wtw-backend-profile')}catch(_){}if(typeof state.onChange==='function')state.onChange(state.profile)}
+  function getProfile(){return state.profile} const isSignedIn=()=>!!state.profile;
+  async function refreshSession(silent=true){try{const data=await api('/api/auth/session',{headers:{Accept:'application/json'}});if(data.authenticated&&data.user)saveProfile(data.user);else saveProfile(null);return data}catch(err){if(!silent)toast('Aither Backend is unavailable.',true);return {authenticated:false,user:null}}}
+  function setupBackendForm(){const form=$('localSignInForm');if(!form||form.dataset.backendReady==='true')return;form.dataset.backendReady='true';form.innerHTML=`<label for="aitherAccountName">Aither account</label><input id="aitherAccountName" type="text" maxlength="80" autocomplete="name" placeholder="Name"><input id="aitherAccountEmail" type="email" maxlength="320" autocomplete="email" placeholder="Email"><input id="aitherAccountPassword" type="password" minlength="8" maxlength="200" autocomplete="current-password" placeholder="Password (8+ characters)"><div class="setting-row"><button type="submit" id="localSignInBtn" class="btn btn-primary btn-small">Sign in / Create account</button></div><p class="signin-local-note">Your account is stored in AitherBackend and your session is kept in a secure browser cookie.</p>`;form.addEventListener('submit',async e=>{e.preventDefault();const name=$('aitherAccountName')?.value.trim(),email=$('aitherAccountEmail')?.value.trim(),password=$('aitherAccountPassword')?.value||'';if(!email||password.length<8){toast('Enter an email and a password with at least 8 characters.',true);return}const button=$('localSignInBtn');if(button)button.disabled=true;try{let data;try{data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})})}catch(loginErr){if(!name)throw loginErr;data=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})})}if(!data?.authenticated||!data.user)throw new Error('Account session was not created.');saveProfile(data.user);toast(`Signed in as ${data.user.name}`)}catch(err){toast(err.message||'Account sign-in failed.',true)}finally{if(button)button.disabled=false}})}
+  async function signInLocally(rawName,avatar){setupBackendForm();const email=$('aitherAccountEmail')?.value.trim(),password=$('aitherAccountPassword')?.value||'',name=$('aitherAccountName')?.value.trim()||String(rawName||'').trim();if(email&&password){try{let data;try{data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})})}catch(_){data=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})})}saveProfile(data.user);return {ok:true}}catch(err){toast(err.message||'Account sign-in failed.',true);return {ok:false,reason:'error'}}}return {ok:false,reason:'backend-form'}}
+  async function signOut(){try{await api('/api/auth/logout',{method:'POST'})}catch(_){}saveProfile(null);toast('Signed out')}
+  function isSupportedHere(){return location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'} function providers(){return[]} const isConfigured=()=>true;async function renderGoogleButton(){return'unavailable'}async function signInWithMicrosoft(){return{ok:false,reason:'backend-only'}}async function signInWithApple(){return{ok:false,reason:'backend-only'}}function setClientId(){return null}function storedClientId(){return''}function configuredClientId(){return null}function avatars(){return[]}
+  function exportAccount(){const payload={v:2,profile:state.profile,settings:window.WTWStorage?.getSettings?.()||{},favorites:window.WTWStorage?.getFavorites?.()||[],madeAt:Date.now()};return btoa(unescape(encodeURIComponent(JSON.stringify(payload))))}
+  function importAccount(code){try{const p=JSON.parse(decodeURIComponent(escape(atob(String(code||'').trim()))));if(!p||!p.settings)return{ok:false,reason:'unreadable'};window.WTWStorage?.saveSettings?.(p.settings);if(Array.isArray(p.favorites))window.WTWStorage?.saveFavorites?.(p.favorites);return{ok:true,name:p.profile?.name||'',favorites:Array.isArray(p.favorites)?p.favorites.length:0}}catch(_){return{ok:false,reason:'unreadable'}}}
+  async function init({onChange}={}){state.onChange=onChange;setupBackendForm();await refreshSession(true);if(typeof onChange==='function')onChange(state.profile)}
   return {init,signOut,getProfile,isSignedIn,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithMicrosoft,signInWithApple,signInLocally,avatars,exportAccount,importAccount,setClientId,storedClientId,configuredClientId,refreshSession};
-})();
-window.WTWAuth=WTWAuth;
+})();window.WTWAuth=WTWAuth;
