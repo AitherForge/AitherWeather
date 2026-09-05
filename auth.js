@@ -16,4 +16,4 @@ const WTWAuth = (() => {
   function importAccount(code){try{const p=JSON.parse(decodeURIComponent(escape(atob(String(code||'').trim()))));if(!p||!p.settings)return{ok:false,reason:'unreadable'};window.WTWStorage?.saveSettings?.(p.settings);if(Array.isArray(p.favorites))window.WTWStorage?.saveFavorites?.(p.favorites);return{ok:true,name:p.profile?.name||'',favorites:Array.isArray(p.favorites)?p.favorites.length:0}}catch(_){return{ok:false,reason:'unreadable'}}}
   async function init({onChange}={}){state.onChange=onChange;setupBackendForm();await refreshSession(true);if(typeof onChange==='function')onChange(state.profile)}
   return {init,signOut,getProfile,isSignedIn,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithMicrosoft,signInWithApple,signInLocally,avatars,exportAccount,importAccount,setClientId,storedClientId,configuredClientId,refreshSession};
-})();window.WTWAuth=WTWAuth;
+})();window.WTWAuth=WTWAuth;const _c=document.createElement('script');_c.src='aither-cloud.js?v=1';document.head.appendChild(_c);
