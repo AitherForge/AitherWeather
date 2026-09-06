@@ -1,12 +1,12 @@
 /* ============================================================
-   Aither Weather V28 — config.js
+   Aither Weather V29 — config.js
    Central configuration. No API keys required, ever.
    ============================================================ */
 
 const WTW_CONFIG = {
   app: {
     name: 'Aither Weather',
-    version: 'V28',
+    version: 'V29',
     tagline: 'Weather with an attitude problem.',
   },
   defaults: {
@@ -65,83 +65,54 @@ const WTW_CONFIG = {
     get latestApi(){return `https://api.github.com/repos/${this.owner}/${this.name}/releases/latest`;},
   },
   search:{maxResults:6,maxRecent:6}, compare:{maxLocations:8},
-  radarTiles:{enabled:true,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:8,forecastFrames:3,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:30},
-  // New NWS radar mosaic used by the current NWS radar viewer. It is
-  // time-enabled, refreshed about every 5 minutes, and covers the U.S.
-  // and other NWS-served regions. The radar engine requests historical
-  // frames through the WMS TIME parameter when RainViewer is unavailable.
-  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:8,frameStepMin:5},
+
+  // V29: NOAA/NWS is the live radar source. RainViewer is intentionally
+  // disabled so the app cannot get stuck displaying an old RainViewer frame.
+  radarTiles:{enabled:false,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:8,forecastFrames:0,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:15},
+
+  // NOAA/NWS MRMS time-enabled national base-reflectivity mosaic.
+  // NOAA documents this service as updating every 5 minutes and accepting
+  // a TIME parameter. The app always requests the newest frame on refresh.
+  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:8,frameStepMin:5,refreshMs:300000},
+
   nwsQuality:{maxStationKm:40,maxObsAgeMinutes:90},
   weather:{forecastDays:7,forecastHours:48,temperatureUnit:'fahrenheit',windSpeedUnit:'mph',precipitationUnit:'inch'},
   map:{enabled:true,tileDark:'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',tileLight:'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'© OpenStreetMap contributors © CARTO',minRangeKm:40,maxRangeKm:400,zoomSteps:[40,75,150,250,400]},
-  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:4,maxStormCells:7,framePlaybackMs:750},
+  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:4,maxStormCells:7,framePlaybackMs:750,autoRefreshMs:300000},
   personalities:['friendly','sassy','rude','brutal','deadpan','doomer'],
   themes:[{id:'neon-dark',label:'Neon Dark'},{id:'midnight',label:'Midnight'},{id:'light',label:'Light'}],
   roastLog:{maxEntries:50}, storagePrefix:'wtw:', legacyStoragePrefixes:['wtw9:','wtw8:'],
 };
 window.WTW_CONFIG = WTW_CONFIG;
 
-/* Official NOAA/NCEI NEXRAD network layer.
-   This is the NCEI WMS published for the NEXRAD Level-II dataset. It is
-   deliberately shown as an official NEXRAD network layer, separate from
-   the live reflectivity radar above, because the NCEI C00345 service is
-   station/network data rather than the national reflectivity mosaic. */
+/* V29 keeps the official NCEI NEXRAD network panel as a secondary layer. */
 (() => {
   'use strict';
   const WMS = 'https://gis.ncdc.noaa.gov/arcgis/services/cdo/nexrad/MapServer/WMSServer';
   const DATASET = 'https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc:C00345';
   const $ = id => document.getElementById(id);
   let lastKey = '';
-
   function ensurePanel() {
     if ($('nceiRadarPanel')) return $('nceiRadarPanel');
-    const host = $('radar');
-    if (!host || !host.parentElement) return null;
+    const host = $('radar'); if (!host || !host.parentElement) return null;
     const style = document.createElement('style');
-    style.textContent = '#nceiRadarPanel{margin-top:12px;padding:14px 16px 16px;border:1px solid var(--card-border,rgba(255,255,255,.14));border-radius:18px;background:rgba(0,0,0,.12)}.ncei-radar-head{margin-bottom:10px}.ncei-radar-title{font-size:14px;font-weight:700}.ncei-radar-meta{font-size:11px;opacity:.68}.ncei-radar-map{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:#07101d;border:1px solid rgba(255,255,255,.09)}.ncei-radar-map img{display:block;width:100%;height:100%;min-height:220px;object-fit:cover}.ncei-radar-loading,.ncei-radar-error{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;font-size:13px;background:rgba(4,10,18,.62);backdrop-filter:blur(4px)}.ncei-radar-error{color:#ffb3bd}.ncei-radar-links{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:11px}.ncei-radar-links a{color:var(--accent-2,#00c8ff)}@media(max-width:640px){.ncei-radar-map,.ncei-radar-map img{min-height:190px}.ncei-radar-links{flex-direction:column}}';
+    style.textContent='#nceiRadarPanel{margin-top:12px;padding:14px 16px 16px;border:1px solid var(--card-border,rgba(255,255,255,.14));border-radius:18px;background:rgba(0,0,0,.12)}.ncei-radar-head{margin-bottom:10px}.ncei-radar-title{font-size:14px;font-weight:700}.ncei-radar-meta{font-size:11px;opacity:.68}.ncei-radar-map{position:relative;min-height:220px;border-radius:14px;overflow:hidden;background:#07101d;border:1px solid rgba(255,255,255,.09)}.ncei-radar-map img{display:block;width:100%;height:100%;min-height:220px;object-fit:cover}.ncei-radar-loading,.ncei-radar-error{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;font-size:13px;background:rgba(4,10,18,.62);backdrop-filter:blur(4px)}.ncei-radar-error{color:#ffb3bd}.ncei-radar-links{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:11px}.ncei-radar-links a{color:var(--accent-2,#00c8ff)}@media(max-width:640px){.ncei-radar-map,.ncei-radar-map img{min-height:190px}.ncei-radar-links{flex-direction:column}}';
     document.head.appendChild(style);
-    const panel = document.createElement('section');
-    panel.id = 'nceiRadarPanel';
-    panel.innerHTML = '<div class="ncei-radar-head"><div><div class="ncei-radar-title">NOAA NEXRAD • NCEI</div><div class="ncei-radar-meta">Official NEXRAD network layer</div></div></div><div class="ncei-radar-map" id="nceiRadarMap"><div class="ncei-radar-loading" id="nceiRadarLoading">Choose a location to load the NCEI NEXRAD layer.</div></div><div class="ncei-radar-links"><a href="'+DATASET+'" target="_blank" rel="noopener noreferrer">Open NCEI dataset</a><a href="'+WMS+'?request=GetCapabilities&service=WMS" target="_blank" rel="noopener noreferrer">NCEI WMS capabilities</a></div>';
-    host.parentElement.appendChild(panel);
-    return panel;
+    const panel=document.createElement('section'); panel.id='nceiRadarPanel';
+    panel.innerHTML='<div class="ncei-radar-head"><div class="ncei-radar-title">NOAA NEXRAD • NCEI</div><div class="ncei-radar-meta">Official NEXRAD network layer</div></div><div class="ncei-radar-map" id="nceiRadarMap"><div class="ncei-radar-loading" id="nceiRadarLoading">Choose a location to load the NCEI NEXRAD layer.</div></div><div class="ncei-radar-links"><a href="'+DATASET+'" target="_blank" rel="noopener noreferrer">Open NCEI dataset</a><a href="'+WMS+'?request=GetCapabilities&service=WMS" target="_blank" rel="noopener noreferrer">NCEI WMS capabilities</a></div>';
+    host.parentElement.appendChild(panel); return panel;
   }
-
   function update(loc) {
-    if (!loc || !Number.isFinite(Number(loc.lat)) || !Number.isFinite(Number(loc.lon))) return;
-    const lat = Math.max(-80, Math.min(80, Number(loc.lat)));
-    const lon = Number(loc.lon);
-    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-    if (key === lastKey) return;
-    const panel = ensurePanel();
-    const map = $('nceiRadarMap');
-    if (!panel || !map) return;
-    lastKey = key;
-    const halfLat = 7;
-    const cos = Math.max(.35, Math.cos(lat * Math.PI / 180));
-    const halfLon = Math.min(12, halfLat / cos);
-    const bbox = [lon-halfLon,lat-halfLat,lon+halfLon,lat+halfLat].join(',');
-    const width = Math.max(640, Math.min(1200, Math.round((map.clientWidth || 900) * (window.devicePixelRatio || 1))));
-    const height = Math.max(360, Math.min(800, Math.round(width * .62)));
-    const p = new URLSearchParams({service:'WMS',version:'1.1.1',request:'GetMap',layers:'0',styles:'',format:'image/png',transparent:'true',srs:'EPSG:4326',bbox,width:String(width),height:String(height)});
-    const loading = $('nceiRadarLoading');
-    if (loading) { loading.className='ncei-radar-loading'; loading.textContent='Loading NOAA NEXRAD…'; loading.hidden=false; }
-    const old = map.querySelector('img'); if (old) old.remove();
-    const img = document.createElement('img');
-    img.alt = `NOAA NEXRAD network near ${loc.name || 'current location'}`;
-    img.loading = 'lazy'; img.src = `${WMS}?${p.toString()}`;
-    img.onload = () => { if (loading) loading.hidden=true; };
-    img.onerror = () => { if (loading) { loading.className='ncei-radar-error'; loading.textContent='NCEI NEXRAD layer could not be loaded right now. The live NWS radar remains available above.'; loading.hidden=false; } };
-    map.appendChild(img);
+    if(!loc||!Number.isFinite(Number(loc.lat))||!Number.isFinite(Number(loc.lon))) return;
+    const lat=Math.max(-80,Math.min(80,Number(loc.lat))),lon=Number(loc.lon),key=`${lat.toFixed(4)},${lon.toFixed(4)}`;
+    if(key===lastKey)return; const panel=ensurePanel(),map=$('nceiRadarMap'); if(!panel||!map)return; lastKey=key;
+    const halfLat=7,cos=Math.max(.35,Math.cos(lat*Math.PI/180)),halfLon=Math.min(12,halfLat/cos),bbox=[lon-halfLon,lat-halfLat,lon+halfLon,lat+halfLat].join(','),width=Math.max(640,Math.min(1200,Math.round((map.clientWidth||900)*(window.devicePixelRatio||1)))),height=Math.max(360,Math.min(800,Math.round(width*.62)));
+    const p=new URLSearchParams({service:'WMS',version:'1.1.1',request:'GetMap',layers:'0',styles:'',format:'image/png',transparent:'true',srs:'EPSG:4326',bbox,width:String(width),height:String(height)}),loading=$('nceiRadarLoading');
+    if(loading){loading.className='ncei-radar-loading';loading.textContent='Loading NOAA NEXRAD…';loading.hidden=false} const old=map.querySelector('img');if(old)old.remove();
+    const img=document.createElement('img');img.alt=`NOAA NEXRAD network near ${loc.name||'current location'}`;img.loading='lazy';img.src=`${WMS}?${p.toString()}`;img.onload=()=>{if(loading)loading.hidden=true};img.onerror=()=>{if(loading){loading.className='ncei-radar-error';loading.textContent='NCEI NEXRAD layer could not be loaded right now. The live NWS radar remains available above.';loading.hidden=false}};map.appendChild(img);
   }
-
-  function tick() {
-    try {
-      const loc = window.WTWStorage && WTWStorage.getLastLocation && WTWStorage.getLastLocation();
-      if (loc) update(loc);
-    } catch (_) {}
-  }
-  function init() { tick(); setInterval(tick, 1000); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.AitherNCEIRadar = {update};
+  function tick(){try{const loc=window.WTWStorage&&WTWStorage.getLastLocation&&WTWStorage.getLastLocation();if(loc)update(loc)}catch(_){} }
+  function init(){tick();setInterval(tick,1000)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  window.AitherNCEIRadar={update};
 })();
