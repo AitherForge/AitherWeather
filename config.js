@@ -1,19 +1,19 @@
 /* ============================================================
-   Aither Weather V29 — config.js
+   Aither Weather V30 — config.js
    Central configuration. No API keys required, ever.
    ============================================================ */
 
 const WTW_CONFIG = {
   app: {
     name: 'Aither Weather',
-    version: 'V29',
+    version: 'V30',
     tagline: 'Weather with an attitude problem.',
   },
   defaults: {
     username: '', personality: 'sassy', botBrain: 'local', showRoast: true,
     radarStyle: 'map', radarOpacity: 0.85, radarSpeed: 1, autoRoast: true,
     theme: 'neon-dark', units: 'imperial', clock: '12', alertNotifications: false,
-    iconStyle: 'rendered', accent: 'neon', forecastDays: 7, hourlyHours: 24,
+    iconStyle: 'rendered', accent: 'neon', forecastDays: 7, hourlyHours: 48,
     sceneAnimation: true, background: 'animated', cardStyle: 'glass',
     corners: 'round', density: 'comfortable', geminiModel: '',
   },
@@ -65,27 +65,20 @@ const WTW_CONFIG = {
     get latestApi(){return `https://api.github.com/repos/${this.owner}/${this.name}/releases/latest`;},
   },
   search:{maxResults:6,maxRecent:6}, compare:{maxLocations:8},
-
-  // V29: NOAA/NWS is the live radar source. RainViewer is intentionally
-  // disabled so the app cannot get stuck displaying an old RainViewer frame.
-  radarTiles:{enabled:false,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:8,forecastFrames:0,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:15},
-
-  // NOAA/NWS MRMS time-enabled national base-reflectivity mosaic.
-  // NOAA documents this service as updating every 5 minutes and accepting
-  // a TIME parameter. The app always requests the newest frame on refresh.
-  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:8,frameStepMin:5,refreshMs:300000},
-
+  // V30: keep a larger recent radar history for smoother playback and reject stale imagery sooner.
+  radarTiles:{enabled:false,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:12,forecastFrames:0,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:10},
+  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:12,frameStepMin:5,refreshMs:300000},
   nwsQuality:{maxStationKm:40,maxObsAgeMinutes:90},
   weather:{forecastDays:7,forecastHours:48,temperatureUnit:'fahrenheit',windSpeedUnit:'mph',precipitationUnit:'inch'},
   map:{enabled:true,tileDark:'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',tileLight:'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'© OpenStreetMap contributors © CARTO',minRangeKm:40,maxRangeKm:400,zoomSteps:[40,75,150,250,400]},
-  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:4,maxStormCells:7,framePlaybackMs:750,autoRefreshMs:300000},
+  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:4,maxStormCells:7,framePlaybackMs:500,autoRefreshMs:300000},
   personalities:['friendly','sassy','rude','brutal','deadpan','doomer'],
   themes:[{id:'neon-dark',label:'Neon Dark'},{id:'midnight',label:'Midnight'},{id:'light',label:'Light'}],
   roastLog:{maxEntries:50}, storagePrefix:'wtw:', legacyStoragePrefixes:['wtw9:','wtw8:'],
 };
 window.WTW_CONFIG = WTW_CONFIG;
 
-/* V29 keeps the official NCEI NEXRAD network panel as a secondary layer. */
+/* V30 keeps the official NCEI NEXRAD network panel as a secondary layer. */
 (() => {
   'use strict';
   const WMS = 'https://gis.ncdc.noaa.gov/arcgis/services/cdo/nexrad/MapServer/WMSServer';
