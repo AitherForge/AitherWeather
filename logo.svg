@@ -1,45 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-labelledby="title desc">
+  <title id="title">Aither Weather</title>
+  <desc id="desc">A clean atmospheric weather mark with a sun, cloud and radar arc.</desc>
   <defs>
-    <linearGradient id="cloudGrad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#00c8ff"/>
-      <stop offset="100%" stop-color="#00ff9d"/>
+    <linearGradient id="sky" x1="16" y1="10" x2="104" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#66D9FF"/>
+      <stop offset="0.52" stop-color="#2B8CFF"/>
+      <stop offset="1" stop-color="#1652C7"/>
     </linearGradient>
-    <linearGradient id="boltGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffe14d"/>
-      <stop offset="100%" stop-color="#ff9d00"/>
+    <linearGradient id="sun" x1="30" y1="18" x2="58" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF4A8"/>
+      <stop offset="1" stop-color="#FFC247"/>
     </linearGradient>
-    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+    <linearGradient id="cloud" x1="28" y1="48" x2="92" y2="86" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D8E7FA"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-opacity=".22"/>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.5"/>
     </filter>
   </defs>
 
-  <!-- Cloud -->
-  <g filter="url(#glow)">
-    <path d="M32 74
-             a16 16 0 0 1 2 -31.8
-             a22 22 0 0 1 42.5 -4.6
-             a18 18 0 0 1 11.5 33.2
-             a14 14 0 0 1 -8 3.2
-             H36
-             a16 16 0 0 1 -4 0 Z"
-          fill="none" stroke="url(#cloudGrad)" stroke-width="5"
-          stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Deep atmospheric disc -->
+  <circle cx="60" cy="60" r="56" fill="url(#sky)"/>
+
+  <!-- Subtle atmosphere/radar rings -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" opacity=".18">
+    <circle cx="60" cy="68" r="39" stroke-width="1.5"/>
+    <circle cx="60" cy="68" r="29" stroke-width="1"/>
   </g>
 
-  <!-- Lightning bolt -->
-  <g filter="url(#glow)">
-    <path d="M63 56 L48 84 L60 84 L52 108 L78 74 L64 74 L74 56 Z"
-          fill="url(#boltGrad)" stroke="#ffde59" stroke-width="1.5"
-          stroke-linejoin="round"/>
+  <!-- Sun -->
+  <g filter="url(#shadow)">
+    <circle cx="47" cy="39" r="17" fill="url(#sun)"/>
+    <g stroke="#FFE88A" stroke-width="3" stroke-linecap="round" opacity=".95">
+      <path d="M47 15v7M47 56v7M23 39h7M64 39h7M30 22l5 5M59 51l5 5M64 22l-5 5M35 51l-5 5"/>
+    </g>
   </g>
 
-  <!-- Rain sparks -->
-  <g stroke="#00c8ff" stroke-width="4" stroke-linecap="round" opacity="0.9">
-    <line x1="36" y1="84" x2="32" y2="94"/>
-    <line x1="86" y1="84" x2="82" y2="94"/>
+  <!-- Main cloud -->
+  <g filter="url(#shadow)">
+    <path d="M31 81h55c10 0 18-7 18-16 0-8-6-15-14-16-3-10-12-17-23-17-9 0-17 5-21 13-2-1-4-1-7-1-10 0-18 8-18 18 0 10 4 19 10 19Z" fill="url(#cloud)"/>
   </g>
+
+  <!-- Radar sweep / precipitation arc -->
+  <g fill="none" stroke="#BFEFFF" stroke-linecap="round">
+    <path d="M26 92c18 14 50 14 68 0" stroke-width="4" opacity=".9"/>
+    <path d="M36 96c14 7 34 7 48 0" stroke-width="2" opacity=".55"/>
+  </g>
+
+  <!-- Small precipitation dots -->
+  <g fill="#FFFFFF" opacity=".9">
+    <circle cx="38" cy="90" r="2"/>
+    <circle cx="60" cy="95" r="2"/>
+    <circle cx="82" cy="90" r="2"/>
+  </g>
+
+  <!-- Clean edge -->
+  <circle cx="60" cy="60" r="55" fill="none" stroke="#FFFFFF" stroke-opacity=".2" stroke-width="1"/>
 </svg>
