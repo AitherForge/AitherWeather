@@ -66,7 +66,11 @@ const WTW_CONFIG = {
   },
   search:{maxResults:6,maxRecent:6}, compare:{maxLocations:8},
   radarTiles:{enabled:true,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:8,forecastFrames:3,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:30},
-  radarImagery:{enabled:true,wmsBase:'https://opengeo.ncep.noaa.gov/geoserver/conus/conus_bref_qcd/ows',layer:'conus_bref_qcd',rangeKm:150,imageSize:512,frameCount:6,frameStepMin:10},
+  // New NWS radar mosaic used by the current NWS radar viewer. It is
+  // time-enabled, refreshed about every 5 minutes, and covers the U.S.
+  // and other NWS-served regions. The radar engine requests historical
+  // frames through the WMS TIME parameter when RainViewer is unavailable.
+  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:8,frameStepMin:5},
   nwsQuality:{maxStationKm:40,maxObsAgeMinutes:90},
   weather:{forecastDays:7,forecastHours:48,temperatureUnit:'fahrenheit',windSpeedUnit:'mph',precipitationUnit:'inch'},
   map:{enabled:true,tileDark:'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',tileLight:'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'© OpenStreetMap contributors © CARTO',minRangeKm:40,maxRangeKm:400,zoomSteps:[40,75,150,250,400]},
@@ -80,8 +84,8 @@ window.WTW_CONFIG = WTW_CONFIG;
 /* Official NOAA/NCEI NEXRAD network layer.
    This is the NCEI WMS published for the NEXRAD Level-II dataset. It is
    deliberately shown as an official NEXRAD network layer, separate from
-   the existing live precipitation animation, because the NCEI layer is
-   not the same thing as a national reflectivity mosaic. */
+   the live reflectivity radar above, because the NCEI C00345 service is
+   station/network data rather than the national reflectivity mosaic. */
 (() => {
   'use strict';
   const WMS = 'https://gis.ncdc.noaa.gov/arcgis/services/cdo/nexrad/MapServer/WMSServer';
@@ -127,7 +131,7 @@ window.WTW_CONFIG = WTW_CONFIG;
     img.alt = `NOAA NEXRAD network near ${loc.name || 'current location'}`;
     img.loading = 'lazy'; img.src = `${WMS}?${p.toString()}`;
     img.onload = () => { if (loading) loading.hidden=true; };
-    img.onerror = () => { if (loading) { loading.className='ncei-radar-error'; loading.textContent='NCEI NEXRAD layer could not be loaded right now. The main live radar remains available above.'; loading.hidden=false; } };
+    img.onerror = () => { if (loading) { loading.className='ncei-radar-error'; loading.textContent='NCEI NEXRAD layer could not be loaded right now. The live NWS radar remains available above.'; loading.hidden=false; } };
     map.appendChild(img);
   }
 
