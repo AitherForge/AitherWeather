@@ -1,5 +1,5 @@
 /* ============================================================
-   Aither Weather V31 — NOAA-only radar source
+   Aither Weather V31 — NOAA-only, Apple-style radar
    ============================================================ */
 
 const WTWRadarSource = (() => {
@@ -9,12 +9,10 @@ const WTWRadarSource = (() => {
 
   function latestObservedIndex(frames) {
     if (!frames || !frames.length) return -1;
-    let best = -1;
-    let bestTime = -Infinity;
+    let best = -1, bestTime = -Infinity;
     frames.forEach((f, i) => {
       if (!f.forecast && f.time instanceof Date && f.time.getTime() > bestTime) {
-        best = i;
-        bestTime = f.time.getTime();
+        best = i; bestTime = f.time.getTime();
       }
     });
     return best;
@@ -22,30 +20,24 @@ const WTWRadarSource = (() => {
 
   function ageMinutes(frames) {
     const i = latestObservedIndex(frames);
-    if (i < 0) return null;
-    return Math.max(0, (Date.now() - frames[i].time.getTime()) / 60000);
+    return i < 0 ? null : Math.max(0, (Date.now() - frames[i].time.getTime()) / 60000);
   }
 
-  // Deliberately returns null. radar.js then uses its NOAA WMS/ImageServer
-  // path. This prevents the old RainViewer path from ever being selected.
-  async function getFrames() {
-    return null;
-  }
-
-  function tileUrl() {
-    return '';
-  }
+  // Never query a third-party radar index. radar.js falls through to its
+  // timestamped NOAA WMS/ImageServer implementation.
+  async function getFrames() { return null; }
+  function tileUrl() { return ''; }
 
   return { getFrames, tileUrl, ageMinutes, latestObservedIndex, NOAA_WMS };
 })();
 
 window.WTWRadarSource = WTWRadarSource;
 
-/* Force every radar configuration path to NOAA/NWS. */
 (() => {
   const c = window.WTW_CONFIG;
   if (!c) return;
 
+  // NOAA is the only radar imagery provider.
   c.radarTiles = Object.assign({}, c.radarTiles, {
     enabled: false,
     source: 'nws',
@@ -56,7 +48,7 @@ window.WTWRadarSource = WTWRadarSource;
 
   c.radarImagery = Object.assign({}, c.radarImagery, {
     enabled: true,
-    wmsBase: WTWRadarSource.NOAA_WMS,
+    wmsBase: NOAA_WMS,
     layer: '0',
     imageSize: 768,
     frameCount: 12,
@@ -65,9 +57,26 @@ window.WTWRadarSource = WTWRadarSource;
     refreshMinutes: 5,
   });
 
+  // Apple Weather-style precipitation view: rectangular map, no scope,
+  // no radar sweep, smooth short history, and frequent refreshes.
+  c.radarStyles = [{ id: 'map', label: 'Map — Apple-style precipitation' }];
+  c.defaults.radarStyle = 'map';
+  c.defaults.radarOpacity = 0.82;
   c.radar = Object.assign({}, c.radar, {
+    fullscreenOnTap: true,
     frameMinutes: 60,
     framePlaybackMs: 650,
     autoRefreshMs: 300000,
+    sweepSecondsPerRev: 0,
   });
+
+  // Remove the old secondary NCEI panel so the radar has one clean,
+  // Apple-like map instead of two different radar presentations.
+  const hideSecondaryRadar = () => {
+    const style = document.createElement('style');
+    style.textContent = '#nceiRadarPanel{display:none!important}\n.radar-wrap{position:relative;overflow:hidden;border-radius:20px;background:#10151d}\n.radar-wrap #radarCanvas{display:block;width:100%;height:min(62vw,560px);min-height:300px}\n.radar-location{position:absolute;left:14px;top:14px;padding:7px 11px;border-radius:999px;background:rgba(20,24,30,.78);backdrop-filter:blur(12px);font-size:12px;font-weight:650;box-shadow:0 2px 12px rgba(0,0,0,.18)}\n@media(max-width:640px){.radar-wrap #radarCanvas{height:72vw;min-height:250px;max-height:430px}}';
+    document.head.appendChild(style);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hideSecondaryRadar, { once: true });
+  else hideSecondaryRadar();
 })();
