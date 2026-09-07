@@ -2,13 +2,14 @@
 const WTWAuth = (() => {
   const API_URL_KEY = 'aither-backend-url';
   const TOKEN_KEY = 'aither-session-token';
+  const GOOGLE_CLIENT_ID = '430217545519-mcir19njrosrpd5hstamro55qq6f716b.apps.googleusercontent.com';
   const LEGACY_API = 'https://aither-backend.onrender.com';
   const BACKEND = (() => {
     const saved = String(localStorage.getItem(API_URL_KEY) || '').trim().replace(/\/+$/, '');
     if (saved === LEGACY_API) { localStorage.removeItem(API_URL_KEY); return 'https://aitherbackend.onrender.com'; }
     return saved || 'https://aitherbackend.onrender.com';
   })();
-  const state = { profile: null, onChange: null };
+  const state = { profile: null, onChange: null, googleReady: false, googleRendering: false };
   const $ = id => document.getElementById(id);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (msg, error=false) => {
@@ -25,6 +26,10 @@ const WTWAuth = (() => {
     #localSignInBtn{width:100%;min-height:48px;border:0;border-radius:12px;background:#8ab4f8;color:#202124;font-weight:800;cursor:pointer}
     #localSignInBtn:disabled{opacity:.6;cursor:wait}
     .signin-local-note{margin:2px 0 0;color:#bdc1c6;font-size:11px;line-height:1.5}
+    .wtw-google-wrap{display:grid;gap:10px;margin:0 0 14px;padding:14px;border:1px solid rgba(138,180,248,.35);border-radius:16px;background:rgba(32,33,36,.72)}
+    .wtw-google-label{font-size:10px;letter-spacing:.15em;color:#8ab4f8;font-weight:900;text-align:center}
+    #googleButtonHost{display:grid;place-items:center;min-height:44px}
+    #googleButtonHost>div{max-width:100%}
     .wtw-account-profile{display:grid;gap:12px;padding:18px;border:1px solid #3c4043;border-radius:16px;background:#303134}
     .wtw-account-profile-head{display:flex;align-items:center;gap:14px}.wtw-account-avatar{width:48px;height:48px;display:grid;place-items:center;border-radius:14px;background:#8ab4f8;color:#202124;font-size:18px;font-weight:900}
     .wtw-account-copy strong,.wtw-account-copy span{display:block}.wtw-account-copy span{margin-top:3px;color:#bdc1c6;font-size:12px;overflow-wrap:anywhere}
@@ -122,11 +127,59 @@ const WTWAuth = (() => {
   }
   async function signOut(){try{await api('/api/auth/logout',{method:'POST'});}catch(_){}localStorage.removeItem(TOKEN_KEY);saveProfile(null);renderForm();toast('Signed out');}
   function isSupportedHere(){return location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'}
-  const providers=()=>[]; const isConfigured=()=>true; async function renderGoogleButton(){return'unavailable'} async function signInWithMicrosoft(){return{ok:false,reason:'backend-only'}} async function signInWithApple(){return{ok:false,reason:'backend-only'}} function setClientId(){return null} function storedClientId(){return''} function configuredClientId(){return null} function avatars(){return[]}
+  const providers=()=>['google']; const isConfigured=()=>true;
+
+  function loadGoogle(){
+    if(window.google?.accounts?.id) return Promise.resolve();
+    if(window.__aitherGoogleLoading) return window.__aitherGoogleLoading;
+    window.__aitherGoogleLoading=new Promise((resolve,reject)=>{
+      const existing=document.querySelector('script[data-aither-google-gis]');
+      if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}
+      const s=document.createElement('script');
+      s.src='https://accounts.google.com/gsi/client';
+      s.async=true;s.defer=true;s.dataset.aitherGoogleGis='true';
+      s.onload=resolve;s.onerror=()=>reject(new Error('Google Sign-In could not load.'));
+      document.head.appendChild(s);
+    });
+    return window.__aitherGoogleLoading;
+  }
+
+  async function handleGoogleCredential(response){
+    if(!response?.credential){toast('Google did not return a sign-in credential.',true);return;}
+    try{
+      const data=await api('/api/auth/google',{method:'POST',body:JSON.stringify({credential:response.credential})});
+      if(data.session_token)localStorage.setItem(TOKEN_KEY,data.session_token);
+      if(!data.user) throw new Error('Aither Backend did not return a Google account.');
+      saveProfile(data.user); renderForm(); toast(`Signed in as ${data.user.name||data.user.email}`);
+    }catch(err){toast(err.message||'Google sign-in failed.',true);}
+  }
+
+  async function renderGoogleButton(){
+    const host=$('googleButtonHost');
+    if(!host) return 'unavailable';
+    host.hidden=false;
+    if(state.googleRendering) return 'loading';
+    state.googleRendering=true;
+    try{
+      await loadGoogle();
+      if(!window.google?.accounts?.id) throw new Error('Google Sign-In is unavailable.');
+      host.innerHTML='';
+      window.google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:handleGoogleCredential,auto_select:false,cancel_on_tap_outside:true});
+      window.google.accounts.id.renderButton(host,{theme:'outline',size:'large',shape:'rectangular',width:360,text:'continue_with',logo_alignment:'left'});
+      state.googleReady=true;
+      return 'ready';
+    }catch(err){
+      host.innerHTML='<div class="signin-local-note" style="text-align:center">Google Sign-In could not load. You can still use your Aither Account below.</div>';
+      return 'error';
+    }finally{state.googleRendering=false;}
+  }
+
+  async function signInWithGoogle(){return renderGoogleButton();}
+  async function signInWithMicrosoft(){return{ok:false,reason:'backend-only'}} async function signInWithApple(){return{ok:false,reason:'backend-only'}} function setClientId(){return GOOGLE_CLIENT_ID} function storedClientId(){return GOOGLE_CLIENT_ID} function configuredClientId(){return GOOGLE_CLIENT_ID} function avatars(){return[]}
   function exportAccount(){const payload={v:2,profile:state.profile,settings:window.WTWStorage?.getSettings?.()||{},favorites:window.WTWStorage?.getFavorites?.()||[],madeAt:Date.now()};return btoa(unescape(encodeURIComponent(JSON.stringify(payload))))}
   function importAccount(code){try{const p=JSON.parse(decodeURIComponent(escape(atob(String(code||'').trim()))));if(!p||!p.settings)return{ok:false,reason:'unreadable'};window.WTWStorage?.saveSettings?.(p.settings);if(Array.isArray(p.favorites))window.WTWStorage?.saveFavorites?.(p.favorites);return{ok:true,name:p.profile?.name||'',favorites:Array.isArray(p.favorites)?p.favorites.length:0}}catch(_){return{ok:false,reason:'unreadable'}}}
-  async function init({onChange}={}){state.onChange=onChange;setupBackendForm();await refreshSession(true);renderForm();if(typeof onChange==='function')onChange(state.profile);}
-  return {init,signOut,getProfile,isSignedIn,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithMicrosoft,signInWithApple,signInLocally,avatars,exportAccount,importAccount,setClientId,storedClientId,configuredClientId,refreshSession};
+  async function init({onChange}={}){state.onChange=onChange;setupBackendForm();await refreshSession(true);renderForm();renderGoogleButton();if(typeof onChange==='function')onChange(state.profile);}
+  return {init,signOut,getProfile,isSignedIn,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithGoogle,signInWithMicrosoft,signInWithApple,signInLocally,avatars,exportAccount,importAccount,setClientId,storedClientId,configuredClientId,refreshSession};
 })();
 window.WTWAuth=WTWAuth;
 const _c=document.createElement('script');_c.src='aither-cloud.js?v=2';document.head.appendChild(_c);
