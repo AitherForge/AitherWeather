@@ -1,17 +1,18 @@
 /* ============================================================
-   Aither Weather V30 — config.js
+   Aither Weather V31 — config.js
    Central configuration. No API keys required, ever.
+   Radar imagery is NOAA/NWS only.
    ============================================================ */
 
 const WTW_CONFIG = {
   app: {
     name: 'Aither Weather',
-    version: 'V30',
+    version: 'V31',
     tagline: 'Weather with an attitude problem.',
   },
   defaults: {
     username: '', personality: 'sassy', botBrain: 'local', showRoast: true,
-    radarStyle: 'map', radarOpacity: 0.85, radarSpeed: 1, autoRoast: true,
+    radarStyle: 'map', radarOpacity: 0.82, radarSpeed: 1, autoRoast: true,
     theme: 'neon-dark', units: 'imperial', clock: '12', alertNotifications: false,
     iconStyle: 'rendered', accent: 'neon', forecastDays: 7, hourlyHours: 48,
     sceneAnimation: true, background: 'animated', cardStyle: 'glass',
@@ -46,7 +47,7 @@ const WTW_CONFIG = {
   ],
   iconStyles: [{id:'rendered',label:'Rendered'},{id:'emoji',label:'Emoji'}],
   backgrounds: [{id:'animated',label:'Animated sky'},{id:'gradient',label:'Sky colours only'},{id:'off',label:'Plain theme'}],
-  radarStyles: [{id:'map',label:'Map — flat, like a weather map'},{id:'scope',label:'Scope — round, with a sweep'}],
+  radarStyles: [{id:'map',label:'Map — Apple-style precipitation'}],
   cardStyles: [{id:'glass',label:'Glass'},{id:'solid',label:'Solid'},{id:'outline',label:'Outline'}],
   cornerStyles: [{id:'round',label:'Rounded'},{id:'soft',label:'Soft'},{id:'square',label:'Square'}],
   densities: [{id:'compact',label:'Compact'},{id:'comfortable',label:'Comfortable'},{id:'airy',label:'Airy'}],
@@ -59,26 +60,27 @@ const WTW_CONFIG = {
     apple:{clientId:'',redirectUri:'',setupUrl:'https://developer.apple.com/account/resources/identifiers/list/serviceId'},
   },
   repo: {
-    owner:'OGAitherTech', name:'WhatTheWether',
+    owner:'AitherForge', name:'AitherWeather',
     get url(){return `https://github.com/${this.owner}/${this.name}`;},
     get releasesUrl(){return `${this.url}/releases`;},
     get latestApi(){return `https://api.github.com/repos/${this.owner}/${this.name}/releases/latest`;},
   },
   search:{maxResults:6,maxRecent:6}, compare:{maxLocations:8},
-  // V30: keep a larger recent radar history for smoother playback and reject stale imagery sooner.
-  radarTiles:{enabled:false,indexUrl:'https://api.rainviewer.com/public/weather-maps.json',frameCount:12,forecastFrames:0,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:10},
-  radarImagery:{enabled:true,wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:12,frameStepMin:5,refreshMs:300000},
+  // V31: radar is NOAA/NWS only. No RainViewer index or third-party radar tiles.
+  radarTiles:{enabled:false,source:'nws',indexUrl:'',frameCount:12,forecastFrames:0,tileSize:256,colorScheme:4,smooth:true,showSnow:true,maxAgeMinutes:10},
+  // Official NOAA/NWS MRMS time-enabled national base-reflectivity mosaic.
+  radarImagery:{enabled:true,provider:'NOAA/NWS',wmsBase:'https://mapservices.weather.noaa.gov/eventdriven/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer',layer:'0',rangeKm:200,imageSize:768,frameCount:12,frameStepMin:5,refreshMs:300000},
   nwsQuality:{maxStationKm:40,maxObsAgeMinutes:90},
   weather:{forecastDays:7,forecastHours:48,temperatureUnit:'fahrenheit',windSpeedUnit:'mph',precipitationUnit:'inch'},
   map:{enabled:true,tileDark:'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',tileLight:'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'© OpenStreetMap contributors © CARTO',minRangeKm:40,maxRangeKm:400,zoomSteps:[40,75,150,250,400]},
-  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:4,maxStormCells:7,framePlaybackMs:500,autoRefreshMs:300000},
+  radar:{fullscreenOnTap:true,frameMinutes:60,sweepSecondsPerRev:0,maxStormCells:0,framePlaybackMs:650,autoRefreshMs:300000},
   personalities:['friendly','sassy','rude','brutal','deadpan','doomer'],
   themes:[{id:'neon-dark',label:'Neon Dark'},{id:'midnight',label:'Midnight'},{id:'light',label:'Light'}],
   roastLog:{maxEntries:50}, storagePrefix:'wtw:', legacyStoragePrefixes:['wtw9:','wtw8:'],
 };
 window.WTW_CONFIG = WTW_CONFIG;
 
-/* V30 keeps the official NCEI NEXRAD network panel as a secondary layer. */
+/* V31: the optional secondary panel is still NOAA/NCEI-only. */
 (() => {
   'use strict';
   const WMS = 'https://gis.ncdc.noaa.gov/arcgis/services/cdo/nexrad/MapServer/WMSServer';
