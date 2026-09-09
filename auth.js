@@ -1,28 +1,50 @@
-/* Aither Weather — shared Aither Account authentication. */
+/* Aither Weather — shared Firebase Aither Account authentication. */
 const WTWAuth = (() => {
-  const API_URL_KEY = 'aither-backend-url';
-  const TOKEN_KEY = 'aither-session-token';
-  const GOOGLE_CLIENT_ID = '430217545519-mcir19njrosrpd5hstamro55qq6f716b.apps.googleusercontent.com';
-  const BACKEND = (() => {
-    const saved = String(localStorage.getItem(API_URL_KEY) || '').trim().replace(/\/+$/, '');
-    const NEW_API = 'https://aitherbackendnew.onrender.com';
-    if (saved && saved !== NEW_API) { localStorage.removeItem(API_URL_KEY); }
-    return NEW_API;
-  })();
-  const state = { profile:null,onChange:null,googleReady:false,googleRendering:false };
+  const API_URL_KEY='aither-backend-url', TOKEN_KEY='aither-session-token', NEW_API='https://aitherbackendnew.onrender.com';
+  const BACKEND=NEW_API;
+  const state={profile:null,onChange:null,auth:null,modules:null};
   const $=id=>document.getElementById(id);
-  async function api(path,options={}){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);const headers={Accept:'application/json','Content-Type':'application/json',...(options.headers||{})};const token=String(localStorage.getItem(TOKEN_KEY)||'').trim();if(token)headers.Authorization=`Bearer ${token}`;try{const res=await fetch(BACKEND+path,{...options,credentials:'omit',headers,cache:'no-store',signal:controller.signal});let data={};try{data=await res.json()}catch(_){}if(!res.ok){const detail=Array.isArray(data.detail)?data.detail.map(x=>x.msg).join(', '):(data.detail||`Request failed (${res.status})`);throw new Error(String(detail))}return data}catch(err){if(err.name==='AbortError')throw new Error('Aither Backend took too long to respond. Please try again.');if(err instanceof TypeError)throw new Error(`Could not connect to Aither Backend.\n${BACKEND}`);throw err}finally{clearTimeout(timer)}}
-  function saveProfile(user){state.profile=user||null;try{if(user)localStorage.setItem('wtw-backend-profile',JSON.stringify(user));else localStorage.removeItem('wtw-backend-profile')}catch(_){}if(typeof state.onChange==='function')state.onChange(state.profile);window.dispatchEvent(new CustomEvent('aither:user-changed',{detail:{user:state.profile}}))}
+  async function firebase(){
+    if(state.modules)return state.modules;
+    const [app,auth]=await Promise.all([
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js')
+    ]);
+    const config=(await import('./firebase-config.js')).default;
+    const firebaseApp=app.initializeApp(config);
+    state.auth=auth.getAuth(firebaseApp);
+    state.modules={...app,...auth,config};
+    return state.modules;
+  }
+  async function api(path,options={}){
+    const headers={Accept:'application/json','Content-Type':'application/json',...(options.headers||{})};
+    const token=String(localStorage.getItem(TOKEN_KEY)||'').trim();
+    if(token)headers.Authorization=`Bearer ${token}`;
+    const res=await fetch(BACKEND+path,{...options,credentials:'include',headers,cache:'no-store'});
+    let data={};try{data=await res.json()}catch(_){}
+    if(!res.ok)throw new Error(Array.isArray(data.detail)?data.detail.map(x=>x.msg).join(', '):(data.detail||`Request failed (${res.status})`));
+    return data;
+  }
+  function saveProfile(user){state.profile=user||null;try{if(user)localStorage.setItem('wtw-backend-profile',JSON.stringify(user));else localStorage.removeItem('wtw-backend-profile')}catch(_){}if(typeof state.onChange==='function')state.onChange(state.profile);window.dispatchEvent(new CustomEvent('aither:user-changed',{detail:{user:state.profile}}));}
+  async function exchangeFirebaseUser(user){
+    if(!user)return null;
+    const idToken=await user.getIdToken();
+    const data=await api('/api/auth/firebase',{method:'POST',body:JSON.stringify({id_token:idToken}),headers:{'Content-Type':'application/json'}});
+    if(data.session_token)localStorage.setItem(TOKEN_KEY,data.session_token);
+    saveProfile(data.user);return data;
+  }
   async function refreshSession(silent=true){try{const data=await api('/api/auth/session');if(data.authenticated&&data.user)saveProfile(data.user);else{localStorage.removeItem(TOKEN_KEY);saveProfile(null)}return data}catch(err){if(!silent)console.error(err);return{authenticated:false,user:null,error:err.message}}}
-  function setupBackendForm(){const form=$('localSignInForm');if(!form||form.dataset.backendReady==='true')return;form.dataset.backendReady='true';renderForm()}
   function renderForm(){const form=$('localSignInForm');if(!form)return;if(state.profile){form.innerHTML=`<div class="wtw-account-profile"><strong>${state.profile.name||'Aither Account'}</strong><span>${state.profile.email||''}</span><button type="button" class="wtw-account-signout" id="wtwAccountSignout">Sign out</button></div>`;$('wtwAccountSignout')?.addEventListener('click',signOut);return}form.innerHTML=`<label>AITHER ACCOUNT</label><input id="aitherAccountName" type="text" maxlength="80" autocomplete="name" placeholder="Name"><input id="aitherAccountEmail" type="email" maxlength="320" autocomplete="email" placeholder="Email" required><input id="aitherAccountPassword" type="password" minlength="8" maxlength="200" autocomplete="current-password" placeholder="Password (8+ characters)" required><button type="submit" id="localSignInBtn">Sign in / Create account</button>`;form.onsubmit=submit}
-  async function submit(e){e.preventDefault();const name=$('aitherAccountName')?.value.trim()||'',email=$('aitherAccountEmail')?.value.trim()||'',password=$('aitherAccountPassword')?.value||'';if(!email||password.length<8)return;try{let data;try{data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})})}catch(loginErr){if(!name)throw loginErr;data=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})})}if(data.session_token)localStorage.setItem(TOKEN_KEY,data.session_token);saveProfile(data.user);renderForm()}catch(err){console.error(err)}}
-  async function signOut(){try{await api('/api/auth/logout',{method:'POST'})}catch(_){}localStorage.removeItem(TOKEN_KEY);saveProfile(null);renderForm()}
-  function loadGoogle(){if(window.google?.accounts?.id)return Promise.resolve();if(window.__aitherGoogleLoading)return window.__aitherGoogleLoading;window.__aitherGoogleLoading=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.defer=true;s.onload=resolve;s.onerror=()=>reject(new Error('Google Sign-In could not load.'));document.head.appendChild(s)});return window.__aitherGoogleLoading}
-  async function handleGoogleCredential(response){if(!response?.credential)return;try{const data=await api('/api/auth/google',{method:'POST',body:JSON.stringify({credential:response.credential})});if(data.session_token)localStorage.setItem(TOKEN_KEY,data.session_token);saveProfile(data.user);renderForm()}catch(err){console.error(err)}}
-  async function renderGoogleButton(){const host=$('googleButtonHost');if(!host)return'unavailable';try{await loadGoogle();host.hidden=false;host.innerHTML='<div class="aither-google-shell"><div class="aither-google-divider"><span>OR</span></div><div class="aither-google-button"></div></div>';if(!document.getElementById('aither-google-style')){const s=document.createElement('style');s.id='aither-google-style';s.textContent='.aither-google-shell{margin:14px 0 2px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:22px;background:rgba(255,255,255,.06);box-shadow:inset 0 1px rgba(255,255,255,.08),0 12px 30px rgba(0,0,0,.12);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}.aither-google-divider{display:flex;align-items:center;gap:10px;margin:0 4px 10px;color:rgba(255,255,255,.55);font:600 10px/1 system-ui;letter-spacing:.12em}.aither-google-divider:before,.aither-google-divider:after{content:"";height:1px;flex:1;background:currentColor;opacity:.35}.aither-google-button{display:flex;justify-content:center}@media(max-width:480px){.aither-google-shell{border-radius:18px;padding:10px 8px}.aither-google-button{width:100%}.aither-google-button>div{max-width:100%}}';document.head.appendChild(s)}google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:handleGoogleCredential,auto_select:false,cancel_on_tap_outside:true});google.accounts.id.renderButton(host.querySelector('.aither-google-button'),{theme:'outline',size:'large',shape:'pill',width:360,text:'continue_with'});state.googleReady=true;return'ready'}catch(err){return'error'}}
+  async function submit(e){e.preventDefault();const email=$('aitherAccountEmail')?.value.trim()||'',password=$('aitherAccountPassword')?.value||'',name=$('aitherAccountName')?.value.trim()||'';if(!email||password.length<8)return;try{const m=await firebase();let cred;try{cred=await m.signInWithEmailAndPassword(state.auth,email,password)}catch(loginErr){if(!name)throw loginErr;cred=await m.createUserWithEmailAndPassword(state.auth,email,password);if(cred.user&&!cred.user.displayName)await m.updateProfile(cred.user,{displayName:name})}await exchangeFirebaseUser(cred.user);renderForm()}catch(err){console.error(err);const status=$('localSignInForm')?.querySelector('.wtw-account-error');if(status)status.textContent=String(err.message||'Authentication failed')}}
+  async function signOut(){try{if(state.auth&&state.modules)await state.modules.signOut(state.auth)}catch(_){}try{await api('/api/auth/logout',{method:'POST'})}catch(_){}localStorage.removeItem(TOKEN_KEY);saveProfile(null);renderForm()}
+  async function renderGoogleButton(){const host=$('googleButtonHost');if(!host)return'unavailable';try{const m=await firebase();host.hidden=false;host.innerHTML='<button type="button" class="aither-firebase-google">Continue with Google</button>';host.querySelector('button').onclick=async()=>{try{const cred=await m.signInWithPopup(state.auth,new m.GoogleAuthProvider());await exchangeFirebaseUser(cred.user);renderForm()}catch(err){console.error(err)}};return'ready'}catch(err){return'error'}}
   async function signInWithGoogle(){return renderGoogleButton()}
-  const providers=()=>['google'];const isConfigured=()=>true;const isSupportedHere=()=>location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';const setClientId=()=>GOOGLE_CLIENT_ID,storedClientId=()=>GOOGLE_CLIENT_ID,configuredClientId=()=>GOOGLE_CLIENT_ID;
-  async function init({onChange}={}){state.onChange=onChange;setupBackendForm();await refreshSession(true);renderForm();renderGoogleButton();if(typeof onChange==='function')onChange(state.profile)}
-  return{init,signOut,getProfile:()=>state.profile,isSignedIn:()=>!!state.profile,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithGoogle,signInLocally:async()=>({ok:false}),signInWithMicrosoft:async()=>({ok:false}),signInWithApple:async()=>({ok:false}),avatars:()=>[],exportAccount:()=>'',importAccount:()=>({ok:false}),setClientId,storedClientId,configuredClientId,refreshSession};
-})();window.WTWAuth=WTWAuth;const _c=document.createElement('script');_c.src='aither-cloud.js?v=3';document.head.appendChild(_c);
+  const providers=()=>['google','password'];
+  const isConfigured=()=>true;
+  const isSupportedHere=()=>location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1';
+  const setClientId=()=>'',storedClientId=()=>'',configuredClientId=()=>'';
+  async function init({onChange}={}){state.onChange=onChange;try{const m=await firebase();m.onAuthStateChanged(state.auth,async user=>{if(user){try{await exchangeFirebaseUser(user)}catch(err){console.error(err)}}else{await refreshSession(true)}})}catch(err){console.error(err)}renderForm();renderGoogleButton();if(typeof onChange==='function')onChange(state.profile)}
+  return{init,signOut,getProfile:()=>state.profile,isSignedIn:()=>!!state.profile,isConfigured,isSupportedHere,providers,renderGoogleButton,signInWithGoogle,signInLocally:submit,signInWithMicrosoft:async()=>({ok:false}),signInWithApple:async()=>({ok:false}),avatars:()=>[],exportAccount:()=>'',importAccount:()=>({ok:false}),setClientId,storedClientId,configuredClientId,refreshSession};
+})();
+window.WTWAuth=WTWAuth;
+const _c=document.createElement('script');_c.src='aither-cloud.js?v=4';document.head.appendChild(_c);
